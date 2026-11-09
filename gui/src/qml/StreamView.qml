@@ -141,6 +141,53 @@ Item {
         }
     }
 
+    // RentPass: session countdown overlay (top-centre). The time comes from
+    // the shared countdown in Main.qml (root.rentPassTimeRemaining). This
+    // overlay only displays the time and shows the 5-min / 1-min warnings;
+    // expiry itself is handled by Main.qml's master timer. The overlay is a
+    // plain Item (no mouse handling), so it does not disturb mouse-assist.
+    RentPassTimer {
+        id: rentPassTimer
+        anchors.fill: parent
+        timeRemaining: root.rentPassTimeRemaining
+        onTimeExpired: root.onRentPassSessionEnded()
+    }
+
+    // RentPass: server heartbeat (kill switch). Every 60 s while streaming,
+    // ask the server if this session is still allowed. An explicit
+    // allowed:false (expired / revoked / network changed) ends the session.
+    // A network error or a rate-limited reply (allowed:null) does NOT end
+    // the session — it just retries on the next tick.
+    function rentPassHeartbeat() {
+        if (!root.rentPassSessionToken || root.rentPassSessionEnded)
+            return
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", "https://api.rentpass.store/api/v1/rentpass/heartbeat")
+        xhr.setRequestHeader("Content-Type", "application/json")
+        xhr.timeout = 10000
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+                try {
+                    var resp = JSON.parse(xhr.responseText)
+                    if (resp.allowed === false)
+                        root.onRentPassSessionEnded()
+                } catch (e) { /* ignore, retry next tick */ }
+            }
+            // Non-200 / network error: ignore, retry next tick.
+        }
+        xhr.onerror = function() { /* ignore, retry next tick */ }
+        xhr.ontimeout = function() { /* ignore, retry next tick */ }
+        xhr.send(JSON.stringify({ session_token: root.rentPassSessionToken }))
+    }
+
+    Timer {
+        id: rentPassHeartbeatTimer
+        interval: 60000
+        repeat: true
+        running: Chiaki.session && Chiaki.session.connected && !root.rentPassSessionEnded
+        onTriggered: view.rentPassHeartbeat()
+    }
+
     Rectangle {
         id: loadingView
         anchors.fill: parent
@@ -544,13 +591,14 @@ Item {
                 checked: Chiaki.session && !Chiaki.session.muted
                 onToggled: Chiaki.session.muted = !Chiaki.session.muted
                 KeyNavigation.left: volumeSlider
-                KeyNavigation.right: zoomButton
+                KeyNavigation.right: closeButton // RentPass: settings are hidden
                 Keys.onReturnPressed: toggled()
                 Keys.onEscapePressed: menuController.close()
             }
 
             ToolButton {
                 id: zoomButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Zoom")
                 padding: 10
                 checkable: true
@@ -569,12 +617,12 @@ Item {
 
             Slider {
                 id: zoomFactor
+                visible: false // RentPass: settings are hidden from customers
                 orientation: Qt.Vertical
                 from: -1
                 to: 4
                 Layout.preferredHeight: 100
                 stepSize: 0.01
-                visible: Chiaki.window.videoMode == ChiakiWindow.VideoMode.Zoom
                 value: Chiaki.window.ZoomFactor
                 onMoved: {
                     Chiaki.window.ZoomFactor = value
@@ -599,12 +647,14 @@ Item {
             }
 
             ToolSeparator {
+            visible: false // RentPass: settings are hidden from customers
                 Layout.leftMargin: -10
                 Layout.rightMargin: -10
             }
 
             ToolButton {
                 id: stretchButton
+                visible: false // RentPass: settings are hidden from customers
                 Layout.rightMargin: 50
                 text: qsTr("Stretch")
                 padding: 10
@@ -624,6 +674,7 @@ Item {
 
             ToolButton {
                 id: defaultButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Default")
                 padding: 10
                 checkable: true
@@ -639,12 +690,14 @@ Item {
             }
 
             ToolSeparator {
+            visible: false // RentPass: settings are hidden from customers
                 Layout.leftMargin: -10
                 Layout.rightMargin: -10
             }
 
             ToolButton {
                 id: highQualityButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("High Quality")
                 padding: 10
                 checkable: true
@@ -661,6 +714,7 @@ Item {
 
             ToolButton {
                 id: highQualitySpatialButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("HQ + Spatial")
                 padding: 10
                 checkable: true
@@ -677,6 +731,7 @@ Item {
 
             ToolButton {
                 id: highQualityAdvancedSpatialButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("HQ + Adv Spatial")
                 padding: 10
                 checkable: true
@@ -692,12 +747,14 @@ Item {
             }
 
             ToolSeparator {
+            visible: false // RentPass: settings are hidden from customers
                 Layout.leftMargin: -10
                 Layout.rightMargin: -10
             }
 
             ToolButton {
                 id: customButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Custom")
                 Layout.rightMargin: 40
                 padding: 10
@@ -715,6 +772,7 @@ Item {
 
             ToolButton {
                 id: displaySettingsButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Display")
                 padding: 10
                 checkable: false
@@ -736,13 +794,13 @@ Item {
 
             ToolButton {
                 id: placeboSettingsButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Placebo")
                 icon.source: "qrc:/icons/settings-20px.svg";
                 padding: 10
                 checkable: false
                 onClicked: root.openPlaceboSettings()
                 KeyNavigation.left: displaySettingsButton
-                visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
                 Keys.onReturnPressed: {
                     menuController.close();
                     clicked();

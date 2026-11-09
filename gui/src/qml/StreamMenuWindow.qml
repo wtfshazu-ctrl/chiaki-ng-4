@@ -156,13 +156,14 @@ Window {
                 checked: Chiaki.session && !Chiaki.session.muted
                 onToggled: Chiaki.session.muted = !Chiaki.session.muted
                 KeyNavigation.left: volumeSlider
-                KeyNavigation.right: zoomButton
+                KeyNavigation.right: closeButton // RentPass: settings are hidden
                 Keys.onReturnPressed: toggled()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
             }
 
             ToolButton {
                 id: zoomButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Zoom")
                 padding: 10
                 checkable: true
@@ -176,12 +177,12 @@ Window {
 
             Slider {
                 id: zoomFactor
+                visible: false // RentPass: settings are hidden from customers
                 orientation: Qt.Vertical
                 from: -1
                 to: 4
                 Layout.preferredHeight: 100
                 stepSize: 0.01
-                visible: Chiaki.window.videoMode == ChiakiWindow.VideoMode.Zoom
                 value: Chiaki.window.ZoomFactor
                 onMoved: {
                     Chiaki.window.ZoomFactor = value
@@ -205,12 +206,14 @@ Window {
             }
 
             ToolSeparator {
+            visible: false // RentPass: settings are hidden from customers
                 Layout.leftMargin: -10
                 Layout.rightMargin: -10
             }
 
             ToolButton {
                 id: stretchButton
+                visible: false // RentPass: settings are hidden from customers
                 Layout.rightMargin: 50
                 text: qsTr("Stretch")
                 padding: 10
@@ -225,6 +228,7 @@ Window {
 
             ToolButton {
                 id: defaultButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Default")
                 padding: 10
                 checkable: true
@@ -240,12 +244,14 @@ Window {
             }
 
             ToolSeparator {
+            visible: false // RentPass: settings are hidden from customers
                 Layout.leftMargin: -10
                 Layout.rightMargin: -10
             }
 
             ToolButton {
                 id: highQualityButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("High Quality")
                 padding: 10
                 checkable: true
@@ -262,6 +268,7 @@ Window {
 
             ToolButton {
                 id: highQualitySpatialButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("HQ + Spatial")
                 padding: 10
                 checkable: true
@@ -278,6 +285,7 @@ Window {
 
             ToolButton {
                 id: highQualityAdvancedSpatialButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("HQ + Adv Spatial")
                 padding: 10
                 checkable: true
@@ -293,12 +301,14 @@ Window {
             }
 
             ToolSeparator {
+            visible: false // RentPass: settings are hidden from customers
                 Layout.leftMargin: -10
                 Layout.rightMargin: -10
             }
 
             ToolButton {
                 id: customButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Custom")
                 Layout.rightMargin: 40
                 padding: 10
@@ -316,6 +326,7 @@ Window {
 
             ToolButton {
                 id: displaySettingsButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Display")
                 padding: 10
                 checkable: false
@@ -329,11 +340,11 @@ Window {
 
             ToolButton {
                 id: placeboSettingsButton
+                visible: false // RentPass: settings are hidden from customers
                 text: qsTr("Placebo")
                 icon.source: "qrc:/icons/settings-20px.svg"
                 padding: 10
                 checkable: false
-                visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
                 onClicked: streamMenuWindow.placeboSettingsRequested()
                 KeyNavigation.left: displaySettingsButton
                 Keys.onReturnPressed: clicked()

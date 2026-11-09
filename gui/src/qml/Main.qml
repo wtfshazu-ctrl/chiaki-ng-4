@@ -11,6 +11,31 @@ Item {
     property bool initialAsk: false
     readonly property bool preferSeparateStreamSettingsWindows: Chiaki.window.runtimeRendererBackend === 1 && Chiaki.session
     property bool useSeparateStreamSettingsWindows: false
+
+    // --- RentPass rental session (set by the redeem screen) ---
+    // Single source of truth for the session. The master 1-second timer
+    // below is the ONLY countdown, so the pre-play screen and the in-stream
+    // timer overlay can never drift apart.
+    property string rentPassSessionToken: ""
+    property string rentPassGameLabel: "RentPass GTA 5 Online"
+    property int rentPassTimeRemaining: 0
+    property bool rentPassSessionEnded: false
+    // RentPass: true once the post-redeem server-config fetch has settled
+    // (server config imported, or bundled fallback used). Guards the
+    // MainView against being shown twice (signal + safety timer).
+    property bool rentPassConfigSettled: false
+
+    // Called when the rental session ends (countdown reaches zero, or the
+    // server denies the session). Stops the stream, deletes the config file
+    // and wipes the settings (Chiaki.rentPassExpireAndCleanup), shows the
+    // "session ended" screen, then quits the app.
+    function onRentPassSessionEnded() {
+        if (rentPassSessionEnded)
+            return
+        rentPassSessionEnded = true
+        Chiaki.rentPassExpireAndCleanup()
+        rentPassSessionEndedQuitTimer.start()
+    }
     Material.theme: Material.Dark
     Material.accent: "#00a7ff"
 
@@ -133,10 +158,23 @@ Item {
             releaseInput();
             useSeparateStreamSettingsWindows = false;
         }
-        if (stack.depth > 1)
-            stack.pop(stack.get(0));
-        else
-            stack.replace(stack.get(0), mainViewComponent);
+        // RentPass: the "main view" is the RentPass game card, never the old
+        // console list. Once the session has ended, stay on the ended screen.
+        if (rentPassSessionEnded)
+            return
+        stack.replace(stack.get(0), rentPassMainViewComponent);
+    }
+
+    // RentPass: show the post-redeem game card.
+    function showRentPassMainView() {
+        stack.replace(stack.get(0), rentPassMainViewComponent);
+    }
+
+    // RentPass: show the stream settings (resolution, FPS, bitrate,
+    // codec) after a valid
+    // redeem and after the server config is imported, before Play Now.
+    function showRentPassStreamSettings() {
+        stack.replace(stack.get(0), rentPassStreamSettingsComponent);
     }
 
     function showStreamView() {
@@ -245,8 +283,8 @@ Item {
     Component.onCompleted: {
         if (Chiaki.session)
             stack.replace(stack.get(0), streamViewComponent, {}, StackView.Immediate);
-        else if (Chiaki.autoConnect)
-            stack.replace(stack.get(0), autoConnectViewComponent, {}, StackView.Immediate);
+        // RentPass: the redeem screen is the first screen. The auto-connect
+        // view is never shown on startup (it would bypass the redeem gate).
     }
 
     Pane {
@@ -258,7 +296,7 @@ Item {
         id: stack
         anchors.fill: parent
         hoverEnabled: false
-        initialItem: mainViewComponent
+        initialItem: redeemViewComponent
         font.pixelSize: 20
 
         replaceEnter: Transition {
@@ -276,6 +314,76 @@ Item {
                 from: 1.0
                 to: 0.0
                 duration: 200
+            }
+        }
+    }
+
+    // RentPass: the master session countdown. The ONLY countdown in the app.
+    // Runs from a successful redeem until the session ends. Both the
+    // pre-play screen and the in-stream timer overlay display this value.
+    Timer {
+        id: rentPassCountdownTimer
+        interval: 1000
+        repeat: true
+        running: root.rentPassTimeRemaining > 0 && !root.rentPassSessionEnded
+        onTriggered: {
+            if (root.rentPassTimeRemaining > 0)
+                root.rentPassTimeRemaining--
+            if (root.rentPassTimeRemaining <= 0)
+                root.onRentPassSessionEnded()
+        }
+    }
+
+    // RentPass: quit a few seconds after the session ends, so the customer
+    // sees the "session ended" message before the app closes.
+    Timer {
+        id: rentPassSessionEndedQuitTimer
+        interval: 3000
+        onTriggered: Qt.quit()
+    }
+
+    // RentPass: safety net for the post-redeem server-config fetch. If the
+    // rentPassConfigReady signal never arrives (e.g. an older build without
+    // it), still show the stream settings after 10 s instead of stranding
+    // the user on the redeem screen. The bundled config is already live
+    // from the first-run import, so Play Now works either way.
+    Timer {
+        id: rentPassConfigTimeoutTimer
+        interval: 10000
+        onTriggered: {
+            if (!root.rentPassConfigSettled && !root.rentPassSessionEnded) {
+                root.rentPassConfigSettled = true
+                root.showRentPassStreamSettings()
+            }
+        }
+    }
+
+    // RentPass: full-screen "session ended" message (above the stack, so it
+    // stays visible even if the stream view tries to return to the main view).
+    Rectangle {
+        id: rentPassSessionEndedOverlay
+        anchors.fill: parent
+        color: "#0a0a14"
+        visible: root.rentPassSessionEnded
+        z: 100
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 16
+
+            Label {
+                text: "Your RentPass session has ended."
+                font.pixelSize: 24
+                font.bold: true
+                color: "#ffffff"
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Label {
+                text: "Thank you for playing with RentPass."
+                font.pixelSize: 14
+                color: "#96a6fd"
+                Layout.alignment: Qt.AlignHCenter
             }
         }
     }
@@ -545,6 +653,21 @@ Item {
             errorHideTimer.start();
         }
 
+        // RentPass: the server config fetch has settled (server config
+        // imported, or bundled fallback used). Show the stream settings now; the game card appears after the customer
+        // confirms the settings.
+        function onRentPassConfigReady() {
+            if (root.rentPassConfigSettled)
+                return
+            root.rentPassConfigSettled = true
+            rentPassConfigTimeoutTimer.stop()
+            // RentPass: lift the picture brightness slightly (the SDR
+            // stream reads a touch dark on some laptops).
+            Chiaki.settings.placeboColorAdjustmentBrightness = 0.05
+            if (!root.rentPassSessionEnded)
+                root.showRentPassStreamSettings()
+        }
+
         function onRegistDialogRequested(host, ps5, duid) {
             if(!duid)
                 showRegistDialog(host, ps5);
@@ -565,6 +688,44 @@ Item {
     Component {
         id: mainViewComponent
         MainView { }
+    }
+
+    // RentPass: the redeem-code entry (first screen) and the post-redeem
+    // game card. The old MainView stays registered as a fallback but is
+    // never shown in the RentPass build.
+    Component {
+        id: redeemViewComponent
+        RentPassRedeem {
+            onRedeemSuccess: function(sessionToken, durationMinutes, expiresAt, timeRemainingSeconds, gameLabel) {
+                root.rentPassSessionToken = sessionToken
+                root.rentPassGameLabel = gameLabel
+                root.rentPassTimeRemaining = timeRemainingSeconds
+                // RentPass: fetch the current settings file from the server
+                // and import it (bundled config is the fallback). The game
+                // card appears when rentPassConfigReady fires, or after
+                // 10 s via the safety timer if the signal never arrives.
+                root.rentPassConfigSettled = false
+                rentPassConfigTimeoutTimer.start()
+                Chiaki.rentPassFetchServerConfig()
+            }
+        }
+    }
+
+    Component {
+        id: rentPassStreamSettingsComponent
+        RentPassStreamSettings {
+            timeRemaining: root.rentPassTimeRemaining
+            onQualityConfirmed: root.showRentPassMainView()
+        }
+    }
+
+    Component {
+        id: rentPassMainViewComponent
+        RentPassMainView {
+            sessionToken: root.rentPassSessionToken
+            gameLabel: root.rentPassGameLabel
+            timeRemaining: root.rentPassTimeRemaining
+        }
     }
 
     Component {

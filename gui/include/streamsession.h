@@ -95,6 +95,8 @@ class SdeckHapticsWorker;
 		bool enable_keyboard;
 		bool keyboard_controller_enabled;
 		bool mouse_touch_enabled;
+		bool mouse_assist_enabled;
+		float mouse_assist_sensitivity;
 		bool enable_dualsense;
 		bool auto_regist;
 		float haptic_override;
@@ -229,6 +231,17 @@ class StreamSession : public QObject
 		float haptic_override;
 		bool keyboard_controller_enabled;
 		bool mouse_touch_enabled;
+		bool mouse_assist_enabled;
+		float mouse_assist_sensitivity;
+		ChiakiControllerState mouse_assist_state;
+		bool mouse_assist_left_held;
+		float mouse_assist_x;
+		float mouse_assist_y;
+		float mouse_assist_last_x;
+		float mouse_assist_last_y;
+		bool mouse_assist_has_last_pos;
+		QElapsedTimer mouse_assist_last_move;
+		QTimer *mouse_assist_decay_timer;
 		bool dpad_regular;
 		bool dpad_regular_touch_switched;
 		uint dpad_touch_shortcut1;
@@ -371,6 +384,7 @@ class StreamSession : public QObject
 		void HandleMouseReleaseEvent(QMouseEvent *event);
 		void HandleMousePressEvent(QMouseEvent *event);
 		void HandleMouseMoveEvent(QMouseEvent *event, qreal width, qreal height);
+		void ResetMouseAssistPosition(float x, float y);
 #if CHIAKI_GUI_ENABLE_SPEEX
 		bool ProcessMicFrame(int16_t *echo_buf);
 #endif
@@ -403,6 +417,7 @@ class StreamSession : public QObject
 	private slots:
 		void UpdateGamepads();
 		void DpadSendFeedbackState();
+		void MouseAssistDecay();
 		void SendFeedbackState();
 };
 

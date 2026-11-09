@@ -189,6 +189,20 @@ public:
     Q_INVOKABLE bool registerHost(const QString &host, const QString &psn_id, const QString &pin, const QString &cpin, bool broadcast, int target, const QJSValue &callback);
     Q_INVOKABLE void connectToHost(int index, QString nickname = QString());
     Q_INVOKABLE void stopSession(bool sleep);
+    // RentPass: end the rental session and remove everything that makes
+    // the app able to connect - stops the stream, deletes rentpass-config.ini
+    // next to the exe, and wipes the live settings. Called on timer expiry
+    // and when the server denies the session (revoke / expiry / IP change).
+    Q_INVOKABLE void rentPassExpireAndCleanup();
+    // RentPass: after a successful redeem, download the current settings
+    // file from the server (GET https://api.rentpass.store/rp/config) and
+    // import it, so server-side config changes reach the app. The bundled
+    // rentpass-config.ini is only a fallback. Never blocks the user: on
+    // any failure it falls back to the bundled config and still emits
+    // rentPassConfigReady(). The redeem session token lives in QML
+    // properties (Main.qml), not in QSettings, so the import (which clears
+    // QSettings first) cannot wipe the session.
+    Q_INVOKABLE void rentPassFetchServerConfig();
     Q_INVOKABLE void sessionGoHome();
     Q_INVOKABLE void enterPin(const QString &pin);
     Q_INVOKABLE QUrl psnLoginUrl() const;
@@ -249,6 +263,9 @@ signals:
     void registDialogRequested(const QString &host, bool ps5, const QString &duid);
     void psnLoginAccountIdDone(const QString &accountId);
     void psnLoginAccountIdError(const QString &error);
+    // RentPass: the server config fetch has settled (server config imported,
+    // or bundled fallback used). QML shows the MainView when this fires.
+    void rentPassConfigReady();
 
 private:
     struct DisplayServer {

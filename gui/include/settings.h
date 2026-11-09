@@ -233,6 +233,19 @@ class Settings : public QObject
 		void ExportSettings(QString filepath);
 		void ImportSettings(QString filepath);
 
+		// RentPass: import rentpass-config.ini (next to the exe) on first run,
+		// so the console is already set up. No-op if the file is missing or
+		// already imported (marker key rentpass_config_imported).
+		void ImportRentPassConfig();
+		// RentPass: mark a RentPass config (bundled or server-fetched) as
+		// imported, so a later restart does not re-import the bundled file
+		// over it. ImportSettings clears the settings first, which wipes
+		// this marker, so callers that import a server config must re-set it.
+		void MarkRentPassConfigImported();
+		// RentPass: wipe all live settings (used on session expiry/revoke so
+		// the app has no console, keys or keymap left).
+		void ClearAll();
+
 		void ExportPlaceboSettings(QString filepath);
 		void ImportPlaceboSettings(QString filepath);
 
@@ -442,6 +455,12 @@ class Settings : public QObject
 
 		bool GetMouseTouchEnabled() const;
 		void SetMouseTouchEnabled(bool enabled);
+
+		bool GetMouseAssistEnabled() const;
+		void SetMouseAssistEnabled(bool enabled);
+
+		float GetMouseAssistSensitivity() const;
+		void SetMouseAssistSensitivity(float sensitivity);
 
 		bool GetDpadTouchEnabled() const;
 		void SetDpadTouchEnabled(bool enabled);

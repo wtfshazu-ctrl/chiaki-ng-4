@@ -97,7 +97,7 @@ done
 
 ./linuxdeploy-${ARCH}.AppImage \
     --appdir="${appdir}" \
-    -e "${appdir}/usr/bin/chiaki" \
+    -e "${appdir}/usr/bin/RentPass" \
     -d "${appdir}/usr/share/applications/chiaking.desktop" \
     "${NSS_MODULE_ARGS[@]}" \
     --plugin qt \

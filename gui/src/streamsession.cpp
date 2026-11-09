@@ -35,6 +35,12 @@
 // DualSense touchpad is 1919 x 1079
 #define PS5_TOUCHPAD_MAX_X 1919.0f
 #define PS5_TOUCHPAD_MAX_Y 1079.0f
+// Mouse Assist: mouse movement drives the right analog stick (camera/aim).
+// At sensitivity 1.0, this many pixels of mouse travel deflect the stick fully.
+#define MOUSE_ASSIST_PIXELS_TO_FULL_DEFLECTION 25.0f
+#define MOUSE_ASSIST_DECAY_INTERVAL_MS 8
+#define MOUSE_ASSIST_DECAY_IDLE_MS 8
+#define MOUSE_ASSIST_DECAY_FACTOR 0.0f
 #define SESSION_RETRY_SECONDS 20
 #define HAPTIC_RUMBLE_MIN_STRENGTH 100
 
@@ -303,6 +309,8 @@ StreamSessionConnectInfo::StreamSessionConnectInfo(
 	const bool keyboard_controller_enabled_setting = settings->GetKeyboardEnabled();
 	this->keyboard_controller_enabled = keyboard_controller_enabled_setting;
 	this->mouse_touch_enabled = settings->GetMouseTouchEnabled();
+	this->mouse_assist_enabled = settings->GetMouseAssistEnabled();
+	this->mouse_assist_sensitivity = settings->GetMouseAssistSensitivity();
 	this->enable_keyboard = false;
 	this->enable_dualsense = true;
 	this->enable_idr_on_fec_failure = settings->GetIDROnFECFailureEnabled();
@@ -463,6 +471,8 @@ StreamSession::StreamSession(const StreamSessionConnectInfo &connect_info, QObje
 	audio_buffer_size = connect_info.audio_buffer_size;
 	mouse_touch_enabled = connect_info.mouse_touch_enabled;
 	keyboard_controller_enabled = connect_info.keyboard_controller_enabled;
+	mouse_assist_enabled = connect_info.mouse_assist_enabled;
+	mouse_assist_sensitivity = connect_info.mouse_assist_sensitivity;
 	host = connect_info.host;
 	QByteArray host_str = connect_info.host.toUtf8();
 
@@ -518,6 +528,15 @@ StreamSession::StreamSession(const StreamSessionConnectInfo &connect_info, QObje
 	mouse_touch_id=-1;
 	dpad_touch_id =-1;
 	chiaki_controller_state_set_idle(&dpad_touch_state);
+	chiaki_controller_state_set_idle(&mouse_assist_state);
+	mouse_assist_left_held = false;
+	mouse_assist_x = 0;
+	mouse_assist_y = 0;
+	mouse_assist_has_last_pos = false;
+	mouse_assist_decay_timer = new QTimer(this);
+	connect(mouse_assist_decay_timer, &QTimer::timeout, this, &StreamSession::MouseAssistDecay);
+	mouse_assist_decay_timer->setInterval(MOUSE_ASSIST_DECAY_INTERVAL_MS);
+	mouse_assist_decay_timer->start();
 	dpad_touch_value = QPair<uint16_t, uint16_t>(0,0);
 	dpad_touch_increment = connect_info.dpad_touch_increment;
 	dpad_touch_timer = new QTimer(this);
@@ -900,6 +919,29 @@ void StreamSession::GoHome()
 
 void StreamSession::HandleMousePressEvent(QMouseEvent *event)
 {
+	if(mouse_assist_enabled)
+	{
+		// Mouse Assist: mouse buttons act as triggers (right = L2 aim/brake).
+		// Left = R2 fire, but ONLY while aiming: on the PS5, R2 is fire on
+		// foot, gas in a vehicle and melee when unarmed, so a bare left
+		// click would accelerate the car / punch. Gating fire behind aim
+		// (right mouse held) fixes both -- a left click on its own does
+		// nothing. Pressing aim while left is already held starts firing.
+		if(event->button() == Qt::MouseButton::LeftButton)
+		{
+			mouse_assist_left_held = true;
+			if(mouse_assist_state.l2_state == 0xff)
+				mouse_assist_state.r2_state = 0xff;
+		}
+		else if(event->button() == Qt::MouseButton::RightButton)
+		{
+			mouse_assist_state.l2_state = 0xff;
+			if(mouse_assist_left_held)
+				mouse_assist_state.r2_state = 0xff;
+		}
+		SendFeedbackState();
+		return;
+	}
 	if(!mouse_touch_enabled)
 		return;
 	// left button for touchpad gestures, others => touchpad click
@@ -910,6 +952,22 @@ void StreamSession::HandleMousePressEvent(QMouseEvent *event)
 
 void StreamSession::HandleMouseReleaseEvent(QMouseEvent *event)
 {
+	if(mouse_assist_enabled)
+	{
+		if(event->button() == Qt::MouseButton::LeftButton)
+		{
+			mouse_assist_left_held = false;
+			mouse_assist_state.r2_state = 0;
+		}
+		else if(event->button() == Qt::MouseButton::RightButton)
+		{
+			// Releasing aim also stops firing: fire requires aim held.
+			mouse_assist_state.l2_state = 0;
+			mouse_assist_state.r2_state = 0;
+		}
+		SendFeedbackState();
+		return;
+	}
 	if(!mouse_touch_enabled)
 		return;
 	// left button => end of touchpad gesture
@@ -927,6 +985,27 @@ void StreamSession::HandleMouseReleaseEvent(QMouseEvent *event)
 
 void StreamSession::HandleMouseMoveEvent(QMouseEvent *event, qreal width, qreal height)
 {
+	if(mouse_assist_enabled)
+	{
+		// Mouse Assist: relative mouse movement drives the right analog stick (camera/aim)
+		QPointF pos = event->position();
+		if(mouse_assist_has_last_pos)
+		{
+			float dx = (float)(pos.x() - mouse_assist_last_x);
+			float dy = (float)(pos.y() - mouse_assist_last_y);
+			float scale = mouse_assist_sensitivity * (32767.0f / MOUSE_ASSIST_PIXELS_TO_FULL_DEFLECTION);
+			mouse_assist_x = std::clamp(mouse_assist_x + dx * scale, -32768.0f, 32767.0f);
+			mouse_assist_y = std::clamp(mouse_assist_y + dy * scale, -32768.0f, 32767.0f);
+			mouse_assist_state.right_x = (int16_t)mouse_assist_x;
+			mouse_assist_state.right_y = (int16_t)mouse_assist_y;
+			mouse_assist_last_move.restart();
+		}
+		mouse_assist_last_x = (float)pos.x();
+		mouse_assist_last_y = (float)pos.y();
+		mouse_assist_has_last_pos = true;
+		SendFeedbackState();
+		return;
+	}
 	if(!mouse_touch_enabled)
 		return;
 	// left button with move => touchpad gesture, otherwise ignore
@@ -942,6 +1021,35 @@ void StreamSession::HandleMouseMoveEvent(QMouseEvent *event, qreal width, qreal 
 		else
 			mouse_touch_id=chiaki_controller_state_start_touch(&keyboard_state, (uint16_t)psx, (uint16_t)psy);	
 	}
+	SendFeedbackState();
+}
+
+void StreamSession::ResetMouseAssistPosition(float x, float y)
+{
+	// Mouse Assist: called by the main window after warping the cursor to the
+	// window centre, so the next real mouse move is measured from the centre.
+	mouse_assist_last_x = x;
+	mouse_assist_last_y = y;
+	mouse_assist_has_last_pos = true;
+}
+
+void StreamSession::MouseAssistDecay()
+{
+	if(!mouse_assist_enabled || !mouse_assist_has_last_pos || !mouse_assist_last_move.isValid())
+		return;
+	// Only decay once the mouse has stopped moving; while moving, fresh deltas keep the stick deflected
+	if(mouse_assist_last_move.elapsed() < MOUSE_ASSIST_DECAY_IDLE_MS)
+		return;
+	if(mouse_assist_x == 0 && mouse_assist_y == 0)
+		return;
+	mouse_assist_x *= MOUSE_ASSIST_DECAY_FACTOR;
+	mouse_assist_y *= MOUSE_ASSIST_DECAY_FACTOR;
+	if(qAbs(mouse_assist_x) < 100.0f)
+		mouse_assist_x = 0;
+	if(qAbs(mouse_assist_y) < 100.0f)
+		mouse_assist_y = 0;
+	mouse_assist_state.right_x = (int16_t)mouse_assist_x;
+	mouse_assist_state.right_y = (int16_t)mouse_assist_y;
 	SendFeedbackState();
 }
 
@@ -1285,6 +1393,7 @@ void StreamSession::DpadSendFeedbackState()
 #endif
 	chiaki_controller_state_or(&state, &state, &keyboard_state);
 	chiaki_controller_state_or(&state, &state, &touch_state);
+	chiaki_controller_state_or(&state, &state, &mouse_assist_state);
 
 	if(input_block)
 	{
@@ -1341,6 +1450,7 @@ void StreamSession::SendFeedbackState()
 #endif
 	chiaki_controller_state_or(&state, &state, &keyboard_state);
 	chiaki_controller_state_or(&state, &state, &touch_state);
+	chiaki_controller_state_or(&state, &state, &mouse_assist_state);
 
 	if(input_block)
 	{

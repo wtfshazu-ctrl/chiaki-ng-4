@@ -30,6 +30,7 @@ extern "C" {
 #include <QStandardPaths>
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QCursor>
 #include <QFile>
 #include <QWidget>
 #include <QLabel>
@@ -2756,7 +2757,12 @@ void QmlMainWindow::setKeepVideo(bool keep)
 
 void QmlMainWindow::grabInput()
 {
-    setCursor(Qt::ArrowCursor);
+    // Mouse Assist: while assist is on and video is playing the cursor must stay
+    // hidden — showing the arrow here would flash a visible cursor into the middle
+    // of the game every time a menu or dialog opens. (With no video, e.g. on the
+    // main view, the arrow still shows as normal.)
+    if(!(settings->GetMouseAssistEnabled() && has_video))
+        setCursor(Qt::ArrowCursor);
     grab_input++;
     if (session)
         session->BlockInput(grab_input);
@@ -2767,7 +2773,7 @@ void QmlMainWindow::releaseInput()
     if (!grab_input)
         return;
     grab_input--;
-    if (!grab_input && has_video && settings->GetHideCursor())
+    if (!grab_input && has_video && (settings->GetHideCursor() || settings->GetMouseAssistEnabled()))
         setCursor(Qt::BlankCursor);
     if (session)
         session->BlockInput(grab_input);
@@ -5851,7 +5857,7 @@ void QmlMainWindow::completeStartupVideoVisibility(quint64 generation)
 
     has_video = true;
     startup_first_real_frame_queued_pending_visibility.storeRelease(0);
-    if (!grab_input && settings->GetHideCursor())
+    if (!grab_input && (settings->GetHideCursor() || settings->GetMouseAssistEnabled()))
         setCursor(Qt::BlankCursor);
     emit hasVideoChanged();
     startup_video_visible_refresh_pending.storeRelease(1);
@@ -7711,7 +7717,20 @@ bool QmlMainWindow::event(QEvent *event)
             return true;
         if (session && !grab_input) {
             if (event->type() == QEvent::MouseMove)
+            {
                 session->HandleMouseMoveEvent(static_cast<QMouseEvent*>(event), width(), height());
+                if(settings->GetMouseAssistEnabled())
+                {
+                    // Mouse Assist: keep the cursor centred so turning never stops
+                    // at the window edge (PC mouse-look). The warp makes a synthetic
+                    // move event, which is dropped above, so it cannot feed back
+                    // into the camera.
+                    QPoint center(width() / 2, height() / 2);
+                    QCursor::setPos(mapToGlobal(center));
+                    session->ResetMouseAssistPosition((float)center.x(), (float)center.y());
+                    setCursor(Qt::BlankCursor);
+                }
+            }
             else if (event->type() == QEvent::MouseButtonPress)
                 session->HandleMousePressEvent(static_cast<QMouseEvent*>(event));
             else if (event->type() == QEvent::MouseButtonRelease)

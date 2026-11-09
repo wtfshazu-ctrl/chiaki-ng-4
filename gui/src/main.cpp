@@ -346,6 +346,9 @@ int real_main(int argc, char *argv[])
 
 int RunMain(QGuiApplication &app, Settings *settings, bool exit_app_on_stream_exit)
 {
+	// RentPass: import the pre-configured settings (rentpass-config.ini next
+	// to the exe) on first run, so the console is already set up.
+	settings->ImportRentPassConfig();
 	QmlMainWindow main_window(settings, exit_app_on_stream_exit);
 	main_window.show();
 	return app.exec();

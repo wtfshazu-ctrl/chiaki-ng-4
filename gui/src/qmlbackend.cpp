@@ -30,6 +30,11 @@
 #include <QImageReader>
 #include <QProcessEnvironment>
 #include <QDesktopServices>
+#include <QFile>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QStandardPaths>
 #include <QtConcurrent>
 #include <QTimer>
 
@@ -1671,6 +1676,123 @@ void QmlBackend::stopSession(bool sleep)
         session->GoToBed();
 
     session->Stop();
+}
+
+// RentPass: end the rental session and remove everything that lets the app
+// connect again. Stops the stream, deletes the pre-configured settings file
+// next to the exe, and wipes the live settings (registry). The installed
+// application files themselves are NOT deleted (a running exe cannot delete
+// itself, and self-deleting behaviour is an AV red flag). After this the app
+// has no console and no keys, so it cannot connect again.
+void QmlBackend::rentPassExpireAndCleanup()
+{
+	stopSession(false);
+	QString config_path = QCoreApplication::applicationDirPath() + "/rentpass-config.ini";
+	QFile::remove(config_path);
+	if(settings)
+		settings->ClearAll();
+}
+
+// RentPass: after a successful redeem, fetch the current settings file
+// from the server and import it, so server-side config changes (host,
+// keymap, video settings) reach the app without a rebuild or reinstall.
+// The bundled rentpass-config.ini is only a fallback: it was already
+// imported on first run (main.cpp), so on any failure here the app keeps
+// working with the bundled config and the user is never blocked.
+// The redeem session token lives in QML properties (Main.qml), not in
+// QSettings, so ImportSettings (which clears QSettings first) cannot
+// wipe the session. Never calls ClearAll(). Emits rentPassConfigReady()
+// on every path (success and fallback) so QML can show the MainView.
+void QmlBackend::rentPassFetchServerConfig()
+{
+	// Fallback: import the bundled config (a no-op if the first-run
+	// import already ran — the marker is set) and settle the UI.
+	auto fallback_to_bundled = [this]() {
+		if(settings)
+			settings->ImportRentPassConfig();
+		emit rentPassConfigReady();
+	};
+
+	if(!settings)
+	{
+		qCWarning(chiakiGui) << "RentPass: no settings, cannot fetch server config; using bundled config";
+		emit rentPassConfigReady();
+		return;
+	}
+
+	QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+	QNetworkRequest request(QUrl(QStringLiteral("https://api.rentpass.store/rp/config")));
+	request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("RentPass/1.0"));
+	QNetworkReply *reply = manager->get(request);
+
+	// ~8 s timeout: abort the request so a hung download cannot strand
+	// the user on the redeem screen (QML also has a 10 s safety timer).
+	QTimer *timeout_timer = new QTimer(reply);
+	timeout_timer->setSingleShot(true);
+	timeout_timer->setInterval(8000);
+	connect(timeout_timer, &QTimer::timeout, reply, [reply]() {
+		if(!reply->isFinished())
+		{
+			reply->setProperty("timed_out", true);
+			reply->abort();
+		}
+	});
+	timeout_timer->start();
+
+	connect(reply, &QNetworkReply::finished, this, [this, reply, manager, fallback_to_bundled]() {
+		manager->deleteLater();
+		bool imported = false;
+		if(reply->error() == QNetworkReply::NoError)
+		{
+			QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+			if(status.isValid() && status.toInt() == 200)
+			{
+				QByteArray data = reply->readAll();
+				// Minimal validation before importing: non-empty text that
+				// looks like the RentPass settings file. The real file
+				// carries the PS5 host, a [General] section and a [keymap]
+				// section; any one of those is enough to accept it.
+				bool looks_like_ini = !data.isEmpty()
+					&& !data.contains('\0')
+					&& (data.contains("203.145.165.100") || data.contains("[General]") || data.contains("[keymap]") || data.contains("keymap/"));
+				if(looks_like_ini)
+				{
+					QString temp_path = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/rentpass-config-server.ini";
+					QFile file(temp_path);
+					if(file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(data) == data.size())
+					{
+						file.close();
+						settings->ImportSettings(temp_path);
+						// ImportSettings clears the settings first, which
+						// wipes the imported marker; re-set it so a later
+						// restart does not re-import the bundled file
+						// over the server config.
+						settings->MarkRentPassConfigImported();
+						QFile::remove(temp_path);
+						qCInfo(chiakiGui) << "RentPass: imported server config from https://api.rentpass.store/rp/config";
+						imported = true;
+					}
+					else
+						qCWarning(chiakiGui) << "RentPass: cannot write server config to temp file, using bundled config";
+				}
+				else
+					qCWarning(chiakiGui) << "RentPass: server config failed validation, using bundled config";
+			}
+			else
+				qCWarning(chiakiGui) << "RentPass: server config HTTP status" << status.toInt() << ", using bundled config";
+		}
+		else
+		{
+			if(reply->property("timed_out").toBool())
+				qCWarning(chiakiGui) << "RentPass: server config download timed out, using bundled config";
+			else
+				qCWarning(chiakiGui) << "RentPass: server config download failed:" << reply->errorString() << ", using bundled config";
+		}
+		if(imported)
+			emit rentPassConfigReady();
+		else
+			fallback_to_bundled();
+	});
 }
 
 void QmlBackend::sessionGoHome()

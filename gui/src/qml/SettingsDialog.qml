@@ -2408,6 +2408,91 @@ DialogView {
                                 }
                             }
                         }
+                        CheckBox {
+                            text: qsTr("Enable Mouse Assist")
+                            checked: {
+                                Chiaki.settings.mouseAssistEnabled
+                            }
+                            onToggled: Chiaki.settings.mouseAssistEnabled = checked
+                            Layout.alignment: Qt.AlignRight
+                            property bool firstInFocusChain: false
+                            property bool lastInFocusChain: false
+                            Material.roundedScale: Material.SmallScale
+                            Material.background: visualFocus ? Material.accent : undefined
+                            onActiveFocusChanged: if (activeFocus) keysFlick.ensureItemVisible(this)
+
+                            Component.onDestruction: {
+                                if (visualFocus) {
+                                    let item = nextItemInFocusChain();
+                                    if (item)
+                                        item.forceActiveFocus(Qt.TabFocusReason);
+                                }
+                            }
+                            Keys.onPressed: (event) => {
+                                switch (event.key) {
+                                    case Qt.Key_Left:
+                                        if (!firstInFocusChain) {
+                                            let item = nextItemInFocusChain(false);
+                                            if (item) {
+                                                item.forceActiveFocus(Qt.TabFocusReason);
+                                                keysFlick.ensureItemVisible(item);
+                                            }
+                                            event.accepted = true;
+                                        }
+                                        break;
+                                    case Qt.Key_Down:
+                                        if (!lastInFocusChain) {
+                                            let item = nextItemInFocusChain();
+                                            if (item) {
+                                                item.forceActiveFocus(Qt.TabFocusReason);
+                                                keysFlick.ensureItemVisible(item);
+                                            }
+                                            for(var i = 0; i < 3; i++)
+                                            {
+                                                let item2 = item.nextItemInFocusChain();
+                                                if (item)
+                                                {
+                                                    item.forceActiveFocus(Qt.TabFocusReason);
+                                                    keysFlick.ensureItemVisible(item);
+                                                    item = item2;
+                                                }
+                                            }
+                                            event.accepted = true;
+                                        }
+                                        break;
+                                    case Qt.Key_Return:
+                                        if (visualFocus) {
+                                            toggle();
+                                            toggled();
+                                        }
+                                        event.accepted = true;
+                                        break;
+                                }
+                            }
+                        }
+
+                        Label {
+                            Layout.alignment: Qt.AlignRight
+                            text: qsTr("Mouse Assist Sensitivity:")
+                        }
+
+                        C.Slider {
+                            Layout.preferredWidth: 200
+                            enabled: Chiaki.settings.mouseAssistEnabled
+                            from: 0.1
+                            to: 3.0
+                            stepSize: 0.1
+                            value: Chiaki.settings.mouseAssistSensitivity
+                            onMoved: Chiaki.settings.mouseAssistSensitivity = value
+                            Label {
+                                anchors {
+                                    left: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: 10
+                                }
+                                text: (parent.value).toFixed(1) + qsTr("x")
+                            }
+                        }
                         Repeater {
                             id: chiakiKeys
                             model: Chiaki.settings.controllerMapping
@@ -3052,7 +3137,7 @@ DialogView {
 
                     C.Button {
                         id: aboutButton
-                        text: qsTr("About %1-ng").arg(Qt.application.name)
+                        text: qsTr("About RentPass")
                         onClicked: aboutDialog.open()
                         Material.roundedScale: Material.SmallScale
                     }
@@ -3113,7 +3198,7 @@ DialogView {
             parent: Overlay.overlay
             x: Math.round((root.width - width) / 2)
             y: Math.round((root.height - height) / 2)
-            title: qsTr("About %1-ng").arg(Qt.application.name)
+            title: qsTr("About RentPass")
             modal: true
             standardButtons: Dialog.Ok
             Material.roundedScale: Material.MediumScale
@@ -3129,15 +3214,15 @@ DialogView {
                     Layout.preferredWidth: 200
                     fillMode: Image.PreserveAspectFit
                     verticalAlignment: Image.AlignTop
-                    source: "qrc:icons/chiaking-logo.svg"
+                    source: "qrc:/icons/rentpass-logo.png"
                 }
 
                 Label {
                     Layout.preferredWidth: 400
                     verticalAlignment: Text.AlignTop
                     wrapMode: Text.Wrap
-                    text: "<h1>chiaki-ng</h1> by Street Pea, version %1
-                        <h2>Fork of Chiaki</h2> by Florian Markl at version 2.1.1
+                    text: "<h1>RentPass</h1> version %1
+                        <p>Based on chiaki-ng by Street Pea.</p>
 
                         <p>This program is free software: you can redistribute it and/or modify
                         it under the terms of the GNU Affero General Public License version 3

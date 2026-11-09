@@ -88,72 +88,72 @@ elseif(WIN32)
 	)
 endif()
 
-add_executable(chiaki WIN32
+add_executable(RentPass WIN32
 		${RESOURCE_FILES}
 		${SOURCE_FILES}
 )
-target_include_directories(chiaki PRIVATE include)
+target_include_directories(RentPass PRIVATE include)
 
 add_library(placebo-libav-impl src/libav_impl.c)
 target_link_libraries(placebo-libav-impl PkgConfig::LIBPLACEBO FFMPEG::avcodec FFMPEG::avutil FFMPEG::avformat)
-target_link_libraries(chiaki PkgConfig::LIBPLACEBO placebo-libav-impl)
+target_link_libraries(RentPass PkgConfig::LIBPLACEBO placebo-libav-impl)
 
-target_link_libraries(chiaki chiaki-lib)
+target_link_libraries(RentPass chiaki-lib)
 if(CHIAKI_ENABLE_CLI)
 	add_definitions(-DCHIAKI_ENABLE_CLI)
-	target_link_libraries(chiaki chiaki-cli-lib)
+	target_link_libraries(RentPass chiaki-cli-lib)
 endif()
 
-target_link_libraries(chiaki Qt::Core Qt::Gui Qt::GuiPrivate Qt::Concurrent Qt::Svg Qt::Qml Qt::Quick Qt::Widgets)
+target_link_libraries(RentPass Qt::Core Qt::Gui Qt::GuiPrivate Qt::Concurrent Qt::Svg Qt::Qml Qt::Quick Qt::Widgets)
 if (${Qt6DBus_FOUND} AND NOT WIN32)
-	target_link_libraries(chiaki Qt::DBus)
+	target_link_libraries(RentPass Qt::DBus)
 if (NOT APPLE)
-	target_compile_definitions(chiaki PRIVATE CHIAKI_HAVE_DBUS)
+	target_compile_definitions(RentPass PRIVATE CHIAKI_HAVE_DBUS)
 endif()
 endif()
 if (${Qt6WebEngineQuick_FOUND})
-	target_link_libraries(chiaki Qt::WebEngineQuick)
-	target_compile_definitions(chiaki PRIVATE CHIAKI_HAVE_WEBENGINE)
+	target_link_libraries(RentPass Qt::WebEngineQuick)
+	target_compile_definitions(RentPass PRIVATE CHIAKI_HAVE_WEBENGINE)
 endif()
-target_link_libraries(chiaki SDL2::SDL2)
+target_link_libraries(RentPass SDL2::SDL2)
 if(CHIAKI_ENABLE_SPEEX)
-  target_link_libraries(chiaki PkgConfig::SpeexDSP)
-  target_compile_definitions(chiaki PRIVATE CHIAKI_GUI_ENABLE_SPEEX)
+  target_link_libraries(RentPass PkgConfig::SpeexDSP)
+  target_compile_definitions(RentPass PRIVATE CHIAKI_GUI_ENABLE_SPEEX)
 endif()
 if(CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER)
-	target_compile_definitions(chiaki PRIVATE CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER)
+	target_compile_definitions(RentPass PRIVATE CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER)
 endif()
 if(CHIAKI_ENABLE_SETSU)
-	target_link_libraries(chiaki setsu)
-	target_compile_definitions(chiaki PRIVATE CHIAKI_GUI_ENABLE_SETSU)
+	target_link_libraries(RentPass setsu)
+	target_compile_definitions(RentPass PRIVATE CHIAKI_GUI_ENABLE_SETSU)
 endif()
 if(CHIAKI_ENABLE_STEAMDECK_NATIVE)
-	target_link_libraries(chiaki sdeck)
-	target_compile_definitions(chiaki PRIVATE QT_STATICPLUGIN CHIAKI_GUI_ENABLE_STEAMDECK_NATIVE)
+	target_link_libraries(RentPass sdeck)
+	target_compile_definitions(RentPass PRIVATE QT_STATICPLUGIN CHIAKI_GUI_ENABLE_STEAMDECK_NATIVE)
 endif()
 if(CHIAKI_ENABLE_STEAM_SHORTCUT)
-	target_link_libraries(chiaki cpp-steam-tools)
-	target_compile_definitions(chiaki PRIVATE CHIAKI_GUI_ENABLE_STEAM_SHORTCUT)
+	target_link_libraries(RentPass cpp-steam-tools)
+	target_compile_definitions(RentPass PRIVATE CHIAKI_GUI_ENABLE_STEAM_SHORTCUT)
 endif()
 if(NOT CHIAKI_ENABLE_FFMPEG_DECODER)
 	message(FATAL_ERROR "Chiaki GUI requires CHIAKI_ENABLE_FFMPEG_DECODER=ON")
 endif()
 if(APPLE)
-	target_link_libraries(chiaki "-framework AVFoundation" "-framework IOKit")
+	target_link_libraries(RentPass "-framework AVFoundation" "-framework IOKit")
 endif()
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fanalyzer")
-set_target_properties(chiaki PROPERTIES
+set_target_properties(RentPass PROPERTIES
 		MACOSX_BUNDLE TRUE
 		MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/MacOSXBundleInfo.plist.in"
-		MACOSX_BUNDLE_BUNDLE_NAME chiaki-ng
+		MACOSX_BUNDLE_BUNDLE_NAME RentPass
 		MACOSX_BUNDLE_BUNDLE_VERSION ${CHIAKI_VERSION}
 		MACOSX_BUNDLE_COPYRIGHT "thestr4ng3r (AGPLv3)"
 		MACOSX_BUNDLE_GUI_IDENTIFIER "org.streetpea.chiaking"
 		MACOSX_BUNDLE_ICON_FILE chiaking.icns
 		RESOURCE "${RESOURCE_FILES}")
 
-install(TARGETS chiaki
+install(TARGETS RentPass
 		RUNTIME DESTINATION bin
 		BUNDLE DESTINATION bin)
 install(FILES chiaking.desktop DESTINATION share/applications)

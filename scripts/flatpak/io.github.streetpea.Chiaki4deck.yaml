@@ -4,7 +4,7 @@ runtime-version: '6.11'
 sdk: org.kde.Sdk
 base: io.qt.qtwebengine.BaseApp
 base-version: '6.11'
-command: chiaki
+command: RentPass
 rename-icon: chiaking
 rename-desktop-file: chiaking.desktop
 separate-locales: false

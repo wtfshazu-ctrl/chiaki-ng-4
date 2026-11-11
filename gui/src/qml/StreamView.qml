@@ -153,6 +153,42 @@ Item {
         onTimeExpired: root.onRentPassSessionEnded()
     }
 
+    // RentPass Driving Mode banner: shows briefly at the top (below the
+    // timer pill) whenever the mode changes, so the customer always
+    // knows whether WASD walks or drives. The mode lives in the
+    // session (StreamSession.rentpassDrivingMode); F toggles it, F8
+    // toggles it manually. Plain text, English only.
+    property bool rentpassDrivingMode: Chiaki.session ? Chiaki.session.rentpassDrivingMode : false
+    onRentpassDrivingModeChanged: {
+        rentPassDrivingBanner.visible = true
+        rentPassDrivingBannerTimer.restart()
+    }
+    Rectangle {
+        id: rentPassDrivingBanner
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: 56
+        width: 380
+        height: 36
+        radius: 18
+        color: rentpassDrivingMode ? "#1a5c2e" : "#1a1a2e"
+        border.color: "#96a6fd"
+        border.width: 1
+        visible: false
+        Label {
+            anchors.centerIn: parent
+            text: rentpassDrivingMode ? "Driving Mode ON - W = Gas, S = Brake, A/D = Steer" : "Driving Mode OFF - WASD to walk"
+            color: "white"
+            font.pixelSize: 14
+            font.bold: true
+        }
+        Timer {
+            id: rentPassDrivingBannerTimer
+            interval: 2500
+            onTriggered: rentPassDrivingBanner.visible = false
+        }
+    }
+
     // RentPass: server heartbeat (kill switch). Every 60 s while streaming,
     // ask the server if this session is still allowed. An explicit
     // allowed:false (expired / revoked / network changed) ends the session.

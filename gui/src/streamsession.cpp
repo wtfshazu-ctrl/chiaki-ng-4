@@ -1053,10 +1053,31 @@ void StreamSession::MouseAssistDecay()
 	SendFeedbackState();
 }
 
+// RentPass Driving Mode: flip between walking (WASD = left stick) and
+// driving (W = gas / R2, S = brake / L2, A/D = steer). F (Triangle,
+// enter/exit vehicle) toggles it; F8 toggles it manually. Clears any
+// held W/S state so nothing sticks across the switch.
+void StreamSession::rentpassToggleDrivingMode()
+{
+	rentpass_driving_mode = !rentpass_driving_mode;
+	keyboard_state.left_y = 0;
+	keyboard_state.r2_state = 0;
+	keyboard_state.l2_state = 0;
+	SendFeedbackState();
+	emit RentpassDrivingModeChanged(rentpass_driving_mode);
+}
+
 void StreamSession::HandleKeyboardEvent(QKeyEvent *event)
 {
 	if(!keyboard_controller_enabled)
 		return;
+	// RentPass Driving Mode manual toggle (F8). F8 is not in the keymap,
+	// so handle it before the keymap lookup.
+	if(event->key() == Qt::Key_F8 && event->type() == QEvent::Type::KeyPress && !event->isAutoRepeat())
+	{
+		rentpassToggleDrivingMode();
+		return;
+	}
 	if(key_map.contains(Qt::Key(event->key())) == false)
 		return;
 
@@ -1065,6 +1086,20 @@ void StreamSession::HandleKeyboardEvent(QKeyEvent *event)
 
 	int button = key_map[Qt::Key(event->key())];
 	bool press_event = event->type() == QEvent::Type::KeyPress;
+
+	// RentPass Driving Mode: F (Triangle, enter/exit vehicle) toggles the
+	// mode. The Triangle button itself is still sent below.
+	if(button == CHIAKI_CONTROLLER_BUTTON_PYRAMID && press_event)
+		rentpassToggleDrivingMode();
+	// RentPass Driving Mode: while driving, W/S become gas/brake (R2/L2).
+	// A/D already steer via the left stick in both modes.
+	if(rentpass_driving_mode)
+	{
+		if(event->key() == Qt::Key_W)
+			button = CHIAKI_CONTROLLER_ANALOG_BUTTON_R2;
+		else if(event->key() == Qt::Key_S)
+			button = CHIAKI_CONTROLLER_ANALOG_BUTTON_L2;
+	}
 
 	switch(button)
 	{

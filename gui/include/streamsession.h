@@ -161,6 +161,7 @@ class StreamSession : public QObject
 	Q_PROPERTY(bool muted READ GetMuted WRITE SetMuted NOTIFY MutedChanged)
 	Q_PROPERTY(bool cantDisplay READ GetCantDisplay NOTIFY CantDisplayChanged)
 	Q_PROPERTY(int framesLost READ GetFramesLost NOTIFY FramesLostChanged)
+	Q_PROPERTY(bool rentpassDrivingMode READ GetRentpassDrivingMode NOTIFY RentpassDrivingModeChanged)
 
 	private:
 		SessionLog log;
@@ -230,6 +231,7 @@ class StreamSession : public QObject
 		float trigger_override;
 		float haptic_override;
 		bool keyboard_controller_enabled;
+		bool rentpass_driving_mode = false;
 		bool mouse_touch_enabled;
 		bool mouse_assist_enabled;
 		float mouse_assist_sensitivity;
@@ -369,6 +371,7 @@ class StreamSession : public QObject
 		void SetMuted(bool enable)	{ if (enable != muted) ToggleMute(); }
 		void SetAudioVolume(int volume) { audio_volume = volume; }
 		bool GetCantDisplay()	{ return cant_display; }
+		bool GetRentpassDrivingMode() { return rentpass_driving_mode; }
 		ChiakiErrorCode ConnectPsnConnection(QString duid, bool ps5);
 		void CancelPsnConnection(bool stop_thread);
 
@@ -378,6 +381,7 @@ class StreamSession : public QObject
 #if CHIAKI_LIB_ENABLE_PI_DECODER
 		ChiakiPiDecoder *GetPiDecoder()	{ return pi_decoder; }
 #endif
+		void rentpassToggleDrivingMode();
 		void HandleKeyboardEvent(QKeyEvent *event);
 		void HandleTouchEvent(QTouchEvent *event, qreal width, qreal height);
 		void HandleDpadTouchEvent(ChiakiControllerState *state, bool placeholder = false);
@@ -413,6 +417,7 @@ class StreamSession : public QObject
 		void MutedChanged();
 		void CantDisplayChanged(bool cant_display);
 		void FecFailure();
+		void RentpassDrivingModeChanged(bool driving);
 
 	private slots:
 		void UpdateGamepads();

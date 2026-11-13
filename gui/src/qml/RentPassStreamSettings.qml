@@ -10,6 +10,9 @@
 // view (Play Now).
 // This screen is part of the redeem flow only — there is no settings
 // menu anywhere else. ALL text is English.
+// RentPass: only 720p / 1080p resolutions, bitrate defaults to 8 Mbps
+// and never goes below 8, codec is H264 only. The layout is compact and
+// centred so the Continue button stays visible on small screens.
 
 import QtQuick
 import QtQuick.Layouts
@@ -38,6 +41,16 @@ Item {
                (sec < 10 ? "0" + sec : sec)
     }
 
+    // RentPass defaults: bitrate 8 Mbps, codec H264. The installed config
+    // ships a 50 Mbps bitrate, so force 8 Mbps here — 8 is the selected
+    // bitrate and the slider never goes below it.
+    Component.onCompleted: {
+        Chiaki.settings.bitrateLocalPS5 = 8000
+        Chiaki.settings.bitrateRemotePS5 = 8000
+        Chiaki.settings.codecLocalPS5 = 0
+        Chiaki.settings.codecRemotePS5 = 0
+    }
+
     Rectangle {
         anchors.fill: parent
         color: "#0a0a14"
@@ -45,20 +58,20 @@ Item {
         ColumnLayout {
             anchors.centerIn: parent
             width: Math.min(parent.width * 0.85, 460)
-            spacing: 14
+            spacing: 8
 
             // RentPass logo (full image, not cropped).
             Image {
                 source: "qrc:/icons/rentpass-logo.png"
                 Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 200
-                Layout.preferredHeight: 200
+                Layout.preferredWidth: 90
+                Layout.preferredHeight: 90
                 fillMode: Image.PreserveAspectFit
             }
 
             Label {
                 text: "Stream settings"
-                font.pixelSize: 24
+                font.pixelSize: 20
                 font.bold: true
                 color: "#ffffff"
                 Layout.alignment: Qt.AlignHCenter
@@ -80,18 +93,21 @@ Item {
                 font.bold: true
                 color: "#ffffff"
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 8
+                Layout.topMargin: 4
             }
 
             ComboBox {
                 Layout.fillWidth: true
-                model: ["360p", "540p", "720p", "1080p (Default)"]
-                currentIndex: Chiaki.settings.resolutionRemotePS5 - 1
+                // RentPass: only 720p and 1080p. Chiaki resolution:
+                // 3 = 720p, 4 = 1080p.
+                model: ["720p", "1080p (Default)"]
+                currentIndex: Chiaki.settings.resolutionRemotePS5 >= 4 ? 1 : 0
                 onActivated: (index) => {
-                    Chiaki.settings.resolutionLocalPS5 = index + 1
-                    Chiaki.settings.resolutionRemotePS5 = index + 1
-                    Chiaki.settings.bitrateLocalPS5 = 0
-                    Chiaki.settings.bitrateRemotePS5 = 0
+                    var res = index === 0 ? 3 : 4
+                    Chiaki.settings.resolutionLocalPS5 = res
+                    Chiaki.settings.resolutionRemotePS5 = res
+                    Chiaki.settings.bitrateLocalPS5 = 8000
+                    Chiaki.settings.bitrateRemotePS5 = 8000
                 }
             }
 
@@ -111,7 +127,7 @@ Item {
                 font.bold: true
                 color: "#ffffff"
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 8
+                Layout.topMargin: 4
             }
 
             ComboBox {
@@ -130,26 +146,19 @@ Item {
                 font.bold: true
                 color: "#ffffff"
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 8
+                Layout.topMargin: 4
             }
 
             Slider {
                 id: bitrateSlider
                 Layout.fillWidth: true
-                property int defaultBitrate: {
-                    var rate = 15;
-                    switch (Chiaki.settings.resolutionRemotePS5) {
-                    case 1: rate = 2; break; // 360p
-                    case 2: rate = 6; break; // 540p
-                    case 3: rate = 10; break; // 720p
-                    case 4: rate = 15; break; // 1080p
-                    }
-                    return rate;
-                }
-                from: 2
+                // RentPass: default bitrate is 8 Mbps, and the slider
+                // never goes below 8. It can go up to 100.
+                property int defaultBitrate: 8
+                from: 8
                 to: 100
                 stepSize: 1
-                value: Chiaki.settings.bitrateRemotePS5 / 1000 ? (Chiaki.settings.bitrateRemotePS5 / 1000) : defaultBitrate
+                value: Math.max(8, Chiaki.settings.bitrateRemotePS5 / 1000 ? (Chiaki.settings.bitrateRemotePS5 / 1000) : defaultBitrate)
                 onMoved: {
                     Chiaki.settings.bitrateLocalPS5 = value * 1000
                     Chiaki.settings.bitrateRemotePS5 = value * 1000
@@ -164,7 +173,7 @@ Item {
             }
 
             Label {
-                text: "Slide left for a smoother stream on a slow laptop, right for a sharper picture."
+                text: "Slide right for a sharper picture."
                 font.pixelSize: 11
                 color: "#888888"
                 Layout.alignment: Qt.AlignHCenter
@@ -179,26 +188,23 @@ Item {
                 font.bold: true
                 color: "#ffffff"
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 8
+                Layout.topMargin: 4
             }
 
             ComboBox {
                 Layout.fillWidth: true
-                // Chiaki codec: 0 = H264, 1 = H265, 2 = H265 HDR. One
-                // control for both local and remote, like resolution,
-                // FPS and bitrate above. H264 is the default (the .ini
-                // ships h264 — it keeps the picture from looking too
-                // bright on ordinary screens).
-                model: ["H264 (Default)", "H265", "H265 HDR"]
-                currentIndex: Chiaki.settings.codecRemotePS5
+                // RentPass: H264 only (codec 0). H265 and H265 HDR are
+                // removed — H264 looks best on most laptops.
+                model: ["H264"]
+                currentIndex: 0
                 onActivated: (index) => {
-                    Chiaki.settings.codecLocalPS5 = index
-                    Chiaki.settings.codecRemotePS5 = index
+                    Chiaki.settings.codecLocalPS5 = 0
+                    Chiaki.settings.codecRemotePS5 = 0
                 }
             }
 
             Label {
-                text: "H264 looks best on most laptops. H265 HDR is brighter and needs a HDR screen."
+                text: "H264 looks best on most laptops."
                 font.pixelSize: 11
                 color: "#888888"
                 Layout.alignment: Qt.AlignHCenter
@@ -210,7 +216,7 @@ Item {
             Button {
                 text: "Continue"
                 Layout.fillWidth: true
-                Layout.topMargin: 8
+                Layout.topMargin: 4
                 Material.background: "#6b4fd8"
                 onClicked: {
                     // The controls above already wrote the choice to the

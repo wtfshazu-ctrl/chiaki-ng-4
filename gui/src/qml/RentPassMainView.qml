@@ -1,4 +1,5 @@
 // RentPassMainView.qml — the clean post-redeem screen.
+// Compact layout so the Play button stays visible on small screens.
 // Shows ONLY the RentPass game card. Deliberately absent: settings button,
 // manual-host entry, PSN, Steam shortcut, discovery toggle, console list.
 // The console is pre-configured by the installed config file; the Play
@@ -62,22 +63,22 @@ Item {
         ColumnLayout {
             anchors.centerIn: parent
             width: Math.min(parent.width * 0.85, 460)
-            spacing: 18
+            spacing: 12
 
             // RentPass logo (full image, not cropped). This is the brand
             // mark — there is no "RentPass" text label below it.
             Image {
                 source: "qrc:/icons/rentpass-logo.png"
                 Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 200
-                Layout.preferredHeight: 200
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 120
                 fillMode: Image.PreserveAspectFit
             }
 
             // --- The one and only game card ---
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 150
+                Layout.preferredHeight: 130
                 radius: 16
                 color: "#1a1a2e"
                 border.color: "#6b4fd8"
@@ -85,12 +86,12 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 14
                     spacing: 8
 
                     Label {
                         text: root.gameLabel
-                        font.pixelSize: 24
+                        font.pixelSize: 20
                         font.bold: true
                         color: "#ffffff"
                         Layout.alignment: Qt.AlignHCenter

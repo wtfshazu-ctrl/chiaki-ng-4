@@ -37,9 +37,9 @@
 #define PS5_TOUCHPAD_MAX_Y 1079.0f
 // Mouse Assist: mouse movement drives the right analog stick (camera/aim).
 // At sensitivity 1.0, this many pixels of mouse travel deflect the stick fully.
-#define MOUSE_ASSIST_PIXELS_TO_FULL_DEFLECTION 25.0f
-#define MOUSE_ASSIST_DECAY_INTERVAL_MS 8
-#define MOUSE_ASSIST_DECAY_IDLE_MS 8
+#define MOUSE_ASSIST_PIXELS_TO_FULL_DEFLECTION 18.0f  // RentPass: higher mouse sensitivity (was 25.0f)
+#define MOUSE_ASSIST_DECAY_INTERVAL_MS 4  // RentPass: faster decay, less mouse lag (was 8)
+#define MOUSE_ASSIST_DECAY_IDLE_MS 4  // RentPass: decay starts sooner after the mouse stops (was 8)
 #define MOUSE_ASSIST_DECAY_FACTOR 0.0f
 #define SESSION_RETRY_SECONDS 20
 #define HAPTIC_RUMBLE_MIN_STRENGTH 100

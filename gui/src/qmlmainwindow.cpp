@@ -2887,9 +2887,9 @@ void QmlMainWindow::setSettings(Settings *new_settings)
     QString profile = settings->GetCurrentProfile();
     qCCritical(chiakiGui) << "Current Profile: " << profile;
     if(profile.isEmpty())
-        QGuiApplication::setApplicationDisplayName("chiaki-ng");
+        QGuiApplication::setApplicationDisplayName("RentPass");  // RentPass: window title shows RentPass, not chiaki-ng
     else
-        QGuiApplication::setApplicationDisplayName(QString("chiaki-ng:%1").arg(profile));
+        QGuiApplication::setApplicationDisplayName(QString("RentPass:%1").arg(profile));  // RentPass: window title shows RentPass, not chiaki-ng
     this->setTitle(QGuiApplication::applicationDisplayName());
 }
 

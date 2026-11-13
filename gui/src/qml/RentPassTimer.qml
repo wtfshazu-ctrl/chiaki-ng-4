@@ -1,7 +1,7 @@
 // RentPassTimer.qml — the in-stream session countdown overlay.
 // Displays the shared session countdown (timeRemaining, driven by the
-// master 1-second timer in Main.qml). Shows a warning at 5 minutes and at
-// 1 minute, and emits timeExpired when the time runs out. This component
+// master 1-second timer in Main.qml) and emits timeExpired when the time
+// runs out. No pop-up reminders — just the countdown. This component
 // does NOT run its own countdown — there is exactly one countdown (in
 // Main.qml) so the pre-play screen and the in-stream overlay can never
 // drift apart. No emoji; plain text only. ALL text is English.
@@ -36,11 +36,7 @@ Item {
     }
 
     onTimeRemainingChanged: {
-        if (timeRemaining === 300)
-            warningDialog.open()
-        else if (timeRemaining === 60)
-            finalWarningDialog.open()
-        else if (timeRemaining <= 0 && _prevTimeRemaining > 0)
+        if (timeRemaining <= 0 && _prevTimeRemaining > 0)
             root.timeExpired()
         _prevTimeRemaining = timeRemaining
     }
@@ -101,28 +97,6 @@ Item {
             color: "white"
             font.pixelSize: 16
             font.bold: true
-        }
-    }
-
-    Dialog {
-        id: warningDialog
-        title: "RentPass"
-        modal: true
-        standardButtons: Dialog.Ok
-        Label {
-            text: "5 minutes remaining in your session!"
-            color: "white"
-        }
-    }
-
-    Dialog {
-        id: finalWarningDialog
-        title: "RentPass"
-        modal: true
-        standardButtons: Dialog.Ok
-        Label {
-            text: "1 minute remaining! Your session will end soon."
-            color: "white"
         }
     }
 }

@@ -143,7 +143,7 @@ Item {
 
     // RentPass: session countdown overlay (top-centre). The time comes from
     // the shared countdown in Main.qml (root.rentPassTimeRemaining). This
-    // overlay only displays the time and shows the 5-min / 1-min warnings;
+    // overlay only displays the time (no pop-up reminders);
     // expiry itself is handled by Main.qml's master timer. The overlay is a
     // plain Item (no mouse handling), so it does not disturb mouse-assist.
     RentPassTimer {
